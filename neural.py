@@ -1,4 +1,13 @@
 import numpy as np
+import pandas as pd
+
+# Define dataset
+df = pd.read_csv('./Training set.csv')
+
+data = df.iloc[:, :2].values  # First two columns as a NumPy array
+data = data / np.max(data, axis = 0)
+all_y_trues = df.iloc[:, 2].values  # Third column as a NumPy array
+
 
 # we'll be using mean squared erroe for loss calculation
 def mse_loss(y_true, y_pred):
@@ -11,6 +20,7 @@ def sigmoid_deriv(x):
     return fx * (1 - fx)
 
 def sigmoid(x):
+    x = np.clip(x, -500, 500)
     return 1 / (1 + np.exp(-x))
 
 class NeuralNetwork:
@@ -36,7 +46,7 @@ class NeuralNetwork:
 
     def train(self, data, all_y_trues):
         learn_rate = 0.1
-        epochs = 1000 # loops through the dataset
+        epochs = 100 # loops through the dataset
 
         for epoch in range(epochs):
             for x, y_true in zip(data, all_y_trues):
@@ -96,26 +106,21 @@ class NeuralNetwork:
                 loss = mse_loss(all_y_trues, y_preds)
                 print("Epoch %d loss: %.3f" % (epoch, loss))
 
-# Define dataset
-data = np.array([
-  [-2, -1],  # Alice
-  [25, 6],   # Bob
-  [17, 4],   # Charlie
-  [-15, -6], # Diana
-])
-all_y_trues = np.array([
-  1, # Alice
-  0, # Bob
-  0, # Charlie
-  1, # Diana
-])
-
 # Train our neural network!
 network = NeuralNetwork()
 network.train(data, all_y_trues)
 
-# Make some predictions
-emily = np.array([-7, -3]) # 128 pounds, 63 inches
-frank = np.array([20, 2])  # 155 pounds, 68 inches
-print("Emily: %.3f" % network.feedForward(emily)) # 0.951 - F
-print("Frank: %.3f" % network.feedForward(frank)) # 0.039 - M
+# Testing dataset
+tf = pd.read_csv('./Test set.csv')
+test_data = tf.iloc[:, :2].values  # First two columns as a NumPy array
+test_data = test_data / np.max(data, axis = 0)
+test_all_y_trues = tf.iloc[:, 2].values  # Third column as a NumPy array
+
+test_predictions = np.apply_along_axis(network.feedForward, 1, test_data)
+test_loss = mse_loss(test_all_y_trues, test_predictions)
+print("Test Loss: %.3f" % test_loss)
+
+#Random Test
+nikita = [157, 44.9]
+nikita = nikita / np.max(data, axis = 0)
+print(network.feedForward(nikita))
