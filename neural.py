@@ -1,18 +1,29 @@
 import numpy as np
 import pandas as pd
+import os
 
 # Define dataset
 df = pd.read_csv('./Training set.csv')
 
+# Training Dataset
 data = df.iloc[:, :2].values  # First two columns as a NumPy array
-data = data / np.max(data, axis = 0)
 all_y_trues = df.iloc[:, 2].values  # Third column as a NumPy array
 
+# Testing dataset
+tf = pd.read_csv('./Test set.csv')
+test_data = tf.iloc[:, :2].values  # First two columns as a NumPy array
+test_all_y_trues = tf.iloc[:, 2].values  # Third column as a NumPy array
+
+# Scaling
+max_values = np.max(np.vstack((data, test_data)), axis=0)
+data /= max_values
+test_data /= max_values
 
 # we'll be using mean squared erroe for loss calculation
-def mse_loss(y_true, y_pred):
-  # y_true and y_pred are numpy arrays of the same length.
-  return ((y_true - y_pred) ** 2).mean()
+def binary_cross_entropy_loss(y_true, y_pred):
+    # Clip predictions to avoid log(0) errors
+    y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+    return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
 
 # Optimisation: Stochastic Gradient descent
 def sigmoid_deriv(x):
@@ -25,7 +36,21 @@ def sigmoid(x):
 
 class NeuralNetwork:
     def __init__(self):
-        #weights
+        self.existing_biases = False
+        # Check if weights exist, otherwise initialize them randomly
+        if os.path.exists("weights.npy") and os.path.exists("biases.npy"):
+            print("Found saved weights and biases. Do you want to use them? (y/n)")
+            response = input()
+            if response.lower() == "y":
+                self.existing_biases = True
+                self.load_weights()
+            else:
+                self.initialize_weights()
+        else:
+            self.initialize_weights()
+
+    def initialize_weights(self):
+        # Initialize weights and biases randomly if no saved ones exist
         self.w1 = np.random.normal()
         self.w2 = np.random.normal()
         self.w3 = np.random.normal()
@@ -33,10 +58,19 @@ class NeuralNetwork:
         self.w5 = np.random.normal()
         self.w6 = np.random.normal()
 
-        # Biases
         self.b1 = np.random.normal()
         self.b2 = np.random.normal()
         self.b3 = np.random.normal()
+
+    def save_weights(self):
+        np.save("weights.npy", [self.w1, self.w2, self.w3, self.w4, self.w5, self.w6])
+        np.save("biases.npy", [self.b1, self.b2, self.b3])
+
+    def load_weights(self):
+        weights = np.load("weights.npy")
+        self.w1, self.w2, self.w3, self.w4, self.w5, self.w6 = weights
+        biases = np.load("biases.npy")
+        self.b1, self.b2, self.b3 = biases
 
     def feedForward(self, x):
         h1 = sigmoid(self.w1 * x[0] + self.w2 * x[1] + self.b1)
@@ -45,8 +79,8 @@ class NeuralNetwork:
         return o1
 
     def train(self, data, all_y_trues):
-        learn_rate = 0.1
-        epochs = 100 # loops through the dataset
+        learn_rate = 0.01
+        epochs = 1000 # loops through the dataset
 
         for epoch in range(epochs):
             for x, y_true in zip(data, all_y_trues):
@@ -63,7 +97,7 @@ class NeuralNetwork:
                 y_pred = o1
 
                 #partial derivateives for SGD
-                d_L_d_ypred = -2 * (y_true - y_pred)
+                d_L_d_ypred = -(y_true/y_pred - (1-y_true)/(1-y_pred))
 
                 #Neuron o1
                 d_ypred_d_w5 = h1 * sigmoid_deriv(sum_o1)
@@ -103,24 +137,16 @@ class NeuralNetwork:
 
             if epoch % 10 == 0:
                 y_preds = np.apply_along_axis(self.feedForward, 1, data)
-                loss = mse_loss(all_y_trues, y_preds)
+                loss = binary_cross_entropy_loss(all_y_trues, y_preds)
                 print("Epoch %d loss: %.3f" % (epoch, loss))
+
+        self.save_weights()
 
 # Train our neural network!
 network = NeuralNetwork()
-network.train(data, all_y_trues)
-
-# Testing dataset
-tf = pd.read_csv('./Test set.csv')
-test_data = tf.iloc[:, :2].values  # First two columns as a NumPy array
-test_data = test_data / np.max(data, axis = 0)
-test_all_y_trues = tf.iloc[:, 2].values  # Third column as a NumPy array
+if(network.existing_biases == False):
+    network.train(data, all_y_trues)
 
 test_predictions = np.apply_along_axis(network.feedForward, 1, test_data)
-test_loss = mse_loss(test_all_y_trues, test_predictions)
+test_loss = binary_cross_entropy_loss(test_all_y_trues, test_predictions)
 print("Test Loss: %.3f" % test_loss)
-
-#Random Test
-nikita = [157, 44.9]
-nikita = nikita / np.max(data, axis = 0)
-print(network.feedForward(nikita))
